@@ -21,6 +21,7 @@ from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy_financial as npf
+from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 #%%
 # Input data
@@ -275,92 +276,38 @@ npv_b, break_even_year_b, irr_b = npv(operation_pv_only_df, StorageCapacity_PVon
 # calculation for self-sufficiency rate and self-consumption rate
 #print("Self-sufficency rate:", round((np.average(ss_share)*100), 0),  '%')
 #print("Self-consumption rate:", round(operation_pv_bat_df['self-consumption rate'].mean()*100, 0),  '%')
-
 #%%
-'''
+
+# Electricity from the grid
 from sklearn.linear_model import LinearRegression
-CO2_intensity_grid_2012 = 339 # [g CO2 eq/ kWh]
-CO2_intensity_grid_2018 = 289
-
-Primary_energy_factor_gird = 2.1 # this PEF is from 2018
-PEF_gird_2012 = 2.5
-PEF_gird_2018 = 2.1
-PEF_gird_2050 = 1
-PEF_gird_2060 = 1
-PEF_gird_2070 = 1
-
-X = ([[2012],
-      [2018],
-      [2050],
-      [2060],
-      [2070]])
-
-y = np.log([847.5,606.9,0.001,0.0001,0.00001])
-
-
-model_PEF = LinearRegression()
-model_PEF.fit(X,y)
-
-model_PEF.coef_, model_PEF.intercept_
-
-xs = np.arange(2010,2080,1)
-ys = np.exp(xs*model_PEF.coef_[0] + model_PEF.intercept_)
-
-plt.scatter(X, [847.5,606.9,0.001,0.0001,0.00001], alpha=0.3)
-plt.plot(xs,ys,'r-',lw=3)
-df_PEF=pd.DataFrame()
-years=[2023]
-for i in range(20):
-    years.append(i+2024)
-    
-df_PEF['Years'] = years
-
-# df_PEF['PEF']=np.exp(df_PEF['Years']*-0.01710544495 + 35.2609642)'''
-# CO2 intensity of electricity of the EU 27 countries in 2021 is 275 g CO2 eq/kWh
-# the assumption here is that in 2050 the carbon intensity of the grid electricity reach 0, positing the carbon neutrality by 2050
+CO2_intensity_grid_2021 = 275 # [g CO2 eq/ kWh] of EU 27
+Primary_energy_factor_grid = 2.1 # this PEF is from 2018, which is of EU 27
+GHG_emissions_grid_2021 = CO2_intensity_grid_2021 * Primary_energy_factor_grid
 
 X = ([[2021],[2050]])
-y = [275.0,0]
+y = [GHG_emissions_grid_2021,0]
 
-model_GHG_grid = LinearRegression()
-model_GHG_grid.fit(X,y)
+model_GHG_emissions = LinearRegression()
+model_GHG_emissions.fit(X,y)
 
-xs = np.arange(2010,2070,1)
-ys = xs*model_GHG_grid.coef_[0] + model_GHG_grid.intercept_
+model_GHG_emissions.coef_, model_GHG_emissions.intercept_
 
-plt.scatter(X, y, alpha=0.3)
-plt.plot(xs,ys,'r-',lw=3)
-df_GHG=pd.DataFrame()
-
-GWP_pv = 55 # global warming potential of pv [g CO2 eq/kWh_generated]
-GWP_battery = 55 # global warming potential of battery [g CO2 eq/kWh_stored]
-
-# Now we assess the GHG emissions for 1 kWh of electricity
 years=[2023]
 for i in range(20):
     years.append(i+2024)
 
-df_GHG['Years'] = years
-
-Carbon_intensity_of_each_year = []
-
-for i in range(len(years)):
-    Carbon_intensity_of_each_year.append(years[i]*model_GHG_grid.coef_[0] + model_GHG_grid.intercept_)
+GHG_emissions_grid = []
+for i in years:
+    GHG_emissions_grid.append(i*model_GHG_emissions.coef_+model_GHG_emissions.intercept_)
     
-df_GHG['CO2_intensity_grid [g CO2 eq/kWh]'] = Carbon_intensity_of_each_year
+df_GHG_emission_grid_related = pd.DataFrame()
+df_GHG_emission_grid_related['Years'] = years
+df_GHG_emission_grid_related['emissions_grid [g CO2 eq/ kWh]'] = GHG_emissions_grid
+df_GHG_emission_grid_related['Years'] = range(21)
+df_GHG_emission_grid_related.set_index('Years')
 
-GHG_from_pv_only_system = []
-GHG_from_pvbat_system = []
-for i in range(len(years)):
-    GHG_from_pv_only_system.append(((operation_pv_only_df['grid consumption'].sum()*df_GHG['CO2_intensity_grid [g CO2 eq/kWh]'].iloc[i]
-                                     +(operation_pv_only_df['Gen [kWh]']).sum()*GWP_pv))/(operation_pv_only_df['demand'].sum()+operation_pv_only_df['grid feed in'].sum()))
-    GHG_from_pvbat_system.append(((operation_pv_bat_df['grid consumption'].sum()*df_GHG['CO2_intensity_grid [g CO2 eq/kWh]'].iloc[i]+
-                                   (operation_pv_bat_df['Gen [kWh]']).sum()*GWP_pv+operation_pv_bat_df['charge of storage'].sum()*GWP_battery))//(operation_pv_bat_df['demand'].sum()+operation_pv_bat_df['grid feed in'].sum()))
-df_GHG['GHG from pv-only system [g CO2 eq]'] = GHG_from_pv_only_system
-df_GHG['GHG from pv-bat system [g CO2 eq]'] = GHG_from_pvbat_system
+df_GHG_emission_grid = pd.DataFrame(index= range(21))
+#df_GHG_emission_grid['kg CO2 eq'] = df_GHG_emission_grid['emission_grid [g CO2 eq/ kWh]']*
 
 
 
-# As the renewable energy mix increases in the grid, it's expected for the manufacturing process of pv and battery to involve less carbon emissions, and, therefore, less global warming potential of the integration of them.
-
- 
