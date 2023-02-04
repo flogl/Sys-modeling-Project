@@ -21,6 +21,7 @@ from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy_financial as npf
+from sklearn.linear_model import LinearRegression
 
 # Input data
 #1. Fixed data / Assumptions
@@ -174,14 +175,14 @@ model, operation_pv_bat_df = storageSystemOperationModel(StoragePower, StorageCa
 model, operation_pv_only_df = storageSystemOperationModel(StoragePower_PVonly, StorageCapacity_PVonly, efficiency_storage, efficiency_charge, 
                               efficiency_discharge, demand, pv_gen, N)
 
-# function for npv calculation a) PV + Battery OR PV only (depending on input DataFrame), b) Grid only
-# 1. calculating  grid costs for one year of operation:
+# function for npv calculation a) PV + Battery b) PV only
+# 1. calculating  grid costs for one year of operation
 # 2. defining and calculating investment and operational cost
 # 3. creation of DataFrame for NPV calculation and determining cash flow, discounted cash flow and accumulated cash flow
 # 4. break even analysis
 # 5. internal rate of return analysis
 def npv(operation_pv_bat_df, StorageCapacity):
-    # calculating electricity costs for consumption
+    # calculating electricity costs for consumption: a) PV + Battery or PV only (depending on Input df) b) Grid only
     grid_costs_a = (operation_pv_bat_df['grid consumption'].sum()*RetailPrice) - (operation_pv_bat_df['grid feed in'].sum()*FeedInPrice) # negative grid costs indicate positive cash flow due to more remuneration from feed in than payment from consumption!
     grid_costs_b = demand_household_total * RetailPrice
     
@@ -220,16 +221,11 @@ def npv(operation_pv_bat_df, StorageCapacity):
     cash_flows_irr = []
     for i in range(len(npv)):
         if i == 0:
-            cash_flows_irr.append(npv['Investment'].iat[0])
+            cash_flows_irr.append(npv['Investment'].iat[i])
         else:
             cash_flows_irr.append(npv['Cash Flow'].iat[i])
     irr = round(npf.irr(cash_flows_irr), 4)
     return npv, break_even_year, irr
-
-# operation of NPV function for a) PV + Battery system and b) PV only system
-npv_a, break_even_year_a, irr_a = npv(operation_pv_bat_df, StorageCapacity)
-npv_b, break_even_year_b, irr_b = npv(operation_pv_only_df, StorageCapacity_PVonly)
-
 
 # plotting npv calculations
 #def plot_npv(npv_a, npv_b):
@@ -247,28 +243,21 @@ npv_b, break_even_year_b, irr_b = npv(operation_pv_only_df, StorageCapacity_PVon
 
 # plotting system operation for one exemplary day
 
-
 # execution of plots
 #plot_npv(npv_a, npv_b)
 #plot_soc_pv_load(operation_pv_bat_df)
 
-
-# print most important system performance indicators / KPIs - pv output total, load total, ss rate, sc rate, average SOC, total feed in, total grid consumption, npv after 20 years, break even
-#IRR -> Grid Cost Difference between a and b -> - OPEX -> Yearly advantage -> New NPV Calculation with Investment as Minus and then Cash Flow = Yearly Advantage, might be more realisitc npv calculation -> only one NPV calculation not 2! Break Even = Accumulated Cash Flow >= 0 as it should be!
-
-# function for calculating self-consumption rate at timestep i
-#def self_consumption_rate(operation_pv_bat_df):
-    #for i in range(len(operation_pv_bat_df)):
-       # operation_pv_bat_df['self-consumption rate'] = 1-(operation_pv_bat_df['grid feed in'].iat[i]-operation_pv_bat_df['Gen [kWh]'].iat[i])
-        #return
-
-# calculation for self-sufficiency rate and self-consumption rate
-#print("Self-sufficency rate:", round((np.average(ss_share)*100), 0),  '%')
-#print("Self-consumption rate:", round(operation_pv_bat_df['self-consumption rate'].mean()*100, 0),  '%')
-
+# print most important system performance indicators / KPIs - pv output total, load total, ss rate, sc rate, average SOC, total feed in, total grid consumption, npv after 20 years, break even, IRR
+#system a) (PV + battery)
+print('Here are the KPIs for the PV + battery system:')
+print('Self-sufficency rate:', round((operation_pv_bat_df['self sufficiency rate'].mean()*100), 0),  '%')
+#system b) (PV only)
+print('Here are the KPIs for the PV only system:')
+print('Self-sufficency rate:', round((operation_pv_only_df['self sufficiency rate'].mean()*100), 0),  '%')
 #%%
 '''
-from sklearn.linear_model import LinearRegression
+# CO2 comparison with linear regression
+
 CO2_intensity_grid_2012 = 339 # [g CO2 eq/ kWh]
 CO2_intensity_grid_2018 = 289
 
