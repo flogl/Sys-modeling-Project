@@ -21,8 +21,7 @@ from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy_financial as npf
-from sklearn.linear_model import LinearRegression
-#%%
+
 # Input data
 #1. Fixed data / Assumptions
 
@@ -156,33 +155,24 @@ def storageSystemOperationModel(StoragePower, StorageCapacity, efficiency_storag
         p_discharge.append(pyo.value(model.p_discharge[i]))
         ss_share.append(pyo.value(model.ss_share[i]))
         soc.append(pyo.value(model.SOC[i]))
-    return model, con_grid, feed_in, p_charge, p_discharge, ss_share, soc
+
+    #store lists in one DataFrame
+    operation_df = pv_gen.copy()
+    operation_df['Load [kWh]'] = demand['Load [kWh]']
+    operation_df['grid consumption'] = con_grid
+    operation_df['grid feed in'] = feed_in
+    operation_df['charge of storage'] = p_charge
+    operation_df['discharge of storage'] = p_discharge
+    operation_df['state of charge'] = soc
+    operation_df['self sufficiency rate'] = ss_share
+    return model, operation_df
 
 # executing model PV + battery system and storing all lists from model operation into dataframe PV + battery system
-model, con_grid, feed_in, p_charge, p_discharge, ss_share, soc = storageSystemOperationModel(StoragePower, StorageCapacity, efficiency_storage, efficiency_charge, 
+model, operation_pv_bat_df = storageSystemOperationModel(StoragePower, StorageCapacity, efficiency_storage, efficiency_charge, 
                               efficiency_discharge, demand, pv_gen, N)
 
-operation_pv_bat_df = pv_gen.copy()
-operation_pv_bat_df['demand'] = demand['Load [kWh]']
-operation_pv_bat_df['grid consumption'] = con_grid
-operation_pv_bat_df['grid feed in'] = feed_in
-operation_pv_bat_df['charge of storage'] = p_charge
-operation_pv_bat_df['discharge of storage'] = p_discharge
-operation_pv_bat_df['state of charge'] = soc
-operation_pv_bat_df['self sufficiency rate'] = ss_share
-
-# executing model PV only system (w/o battery) and storing all lists from model operation into dataframe PV + battery system
-model, con_grid, feed_in, p_charge, p_discharge, ss_share, soc = storageSystemOperationModel(StoragePower_PVonly, StorageCapacity_PVonly, efficiency_storage, efficiency_charge, 
-                                                                                             efficiency_discharge, demand, pv_gen, N)
-
-operation_pv_only_df = pv_gen.copy()
-operation_pv_only_df['demand'] = demand['Load [kWh]']
-operation_pv_only_df['grid consumption'] = con_grid
-operation_pv_only_df['grid feed in'] = feed_in
-operation_pv_only_df['charge of storage'] = p_charge
-operation_pv_only_df['discharge of storage'] = p_discharge
-operation_pv_only_df['state of charge'] = soc
-operation_pv_only_df['self sufficiency rate'] = ss_share
+model, operation_pv_only_df = storageSystemOperationModel(StoragePower_PVonly, StorageCapacity_PVonly, efficiency_storage, efficiency_charge, 
+                              efficiency_discharge, demand, pv_gen, N)
 
 # function for npv calculation a) PV + Battery OR PV only (depending on input DataFrame), b) Grid only
 # 1. calculating  grid costs for one year of operation:
